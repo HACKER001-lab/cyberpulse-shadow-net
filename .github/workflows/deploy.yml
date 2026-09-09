@@ -18,6 +18,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
+    env:
+      SUPABASE_URL: https://lfjzatkvpiomgbgxlexd.supabase.co
+      SUPABASE_ANON_KEY: sb_publishable_BnB4AgTMjkUiPnmKA7Cp5w_yhQwGGqo
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
