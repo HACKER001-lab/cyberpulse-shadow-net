@@ -1,0 +1,16 @@
+# ---------------------------------------------------------------------------
+# CyberPulse: Shadow Net — Cloudflare Pages project descriptor.
+#
+# Only needed for direct CLI deploys:
+#
+#   SUPABASE_URL=... SUPABASE_ANON_KEY=... bash build.sh
+#   npx wrangler pages deploy dist --project-name cyberpulse-shadow-net
+#
+# With the Git integration you configure the build command and the environment
+# variables in the Pages dashboard instead, and this file is ignored.
+#
+# Nothing secret belongs in this file. It is committed to the repository.
+# ---------------------------------------------------------------------------
+name = "cyberpulse-shadow-net"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-01-01"
