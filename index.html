@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CyberPulse: Shadow Net — Underground Digital Economy</title>
+<meta name="description" content="CyberPulse: Shadow Net — a minimalist cyber-themed browser RPG. Run exploits, launder credits, guard your vault, and climb the shadow net." />
+
+<!-- ============ FONTS: JetBrains Mono ============ -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+<!-- ============ ICONS: FontAwesome ============ -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+
+<!-- ============ TAILWIND CSS (CDN) ============ -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // Tailwind runtime configuration — class-based dark mode + project palette
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: { mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'] },
+        colors: {
+          obsidian: { 950: '#05070a', 900: '#0a0e14', 850: '#0f141c', 800: '#141b25', 700: '#1d2634' },
+          pulse: { DEFAULT: '#10b981', soft: '#34d399', deep: '#059669' },
+          amberflux: { DEFAULT: '#f59e0b', soft: '#fbbf24' }
+        },
+        boxShadow: {
+          glow: '0 0 0 1px rgba(16,185,129,.25), 0 12px 40px -12px rgba(16,185,129,.35)',
+          panel: '0 1px 2px rgba(0,0,0,.04), 0 12px 32px -16px rgba(2,6,23,.28)'
+        },
+        keyframes: {
+          fadeUp: { '0%': { opacity: 0, transform: 'translateY(10px)' }, '100%': { opacity: 1, transform: 'none' } },
+          pulseRing: { '0%,100%': { opacity: .35 }, '50%': { opacity: 1 } },
+          scan: { '0%': { transform: 'translateY(-100%)' }, '100%': { transform: 'translateY(400%)' } }
+        },
+        animation: {
+          fadeUp: 'fadeUp .38s cubic-bezier(.16,1,.3,1) both',
+          pulseRing: 'pulseRing 2.4s ease-in-out infinite',
+          scan: 'scan 3.5s linear infinite'
+        }
+      }
+    }
+  };
+</script>
+
+<!-- ============ BASE STYLES ============ -->
+<style>
+  :root { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+  html, body { font-family: 'JetBrains Mono', monospace; }
+  body { -webkit-font-smoothing: antialiased; letter-spacing: -0.011em; }
+
+  /* Thin, theme-aware scrollbars */
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(100,116,139,.35); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(16,185,129,.55); }
+
+  /* Subtle grid texture used behind hero + dashboard shell */
+  .grid-texture {
+    background-image: linear-gradient(rgba(148,163,184,.10) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(148,163,184,.10) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+  .dark .grid-texture {
+    background-image: linear-gradient(rgba(148,163,184,.06) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(148,163,184,.06) 1px, transparent 1px);
+  }
+
+  /* Focus ring consistent across the whole app */
+  :where(button, input, select, a):focus-visible {
+    outline: 2px solid #10b981; outline-offset: 2px; border-radius: 6px;
+  }
+
+  /* Light-mode contrast: neon accents need darkening on white surfaces */
+  html:not(.dark) .text-pulse { color: #047857; }
+  html:not(.dark) .text-amberflux { color: #b45309; }
+
+  /* Utility classes */
+  .mono-caps { letter-spacing: .18em; text-transform: uppercase; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Terminal log feed */
+  #logFeed .log-row:hover { background: rgba(16,185,129,.06); }
+
+  /* Number transitions */
+  .stat-flash { animation: fadeUp .3s ease both; }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+
+<body class="bg-slate-50 dark:bg-obsidian-950 text-slate-900 dark:text-slate-200 antialiased transition-colors duration-300">
+
+<!-- ==================================================================== -->
+<!-- TOAST HOST                                                            -->
+<!-- ==================================================================== -->
+<div id="toastHost" class="fixed z-[90] bottom-4 right-4 sm:bottom-auto sm:top-[86px] flex flex-col gap-2 w-[min(92vw,360px)]" aria-live="polite"></div>
+
+<!-- ==================================================================== -->
+<!-- MODAL HOST                                                            -->
+<!-- ==================================================================== -->
+<div id="modalHost" hidden class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+  <div id="modalBackdrop" class="absolute inset-0 bg-slate-900/45 dark:bg-black/65 backdrop-blur-sm"></div>
+  <div role="dialog" aria-modal="true" class="relative w-full max-w-md rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 shadow-2xl p-6 animate-fadeUp">
+    <div class="flex items-start gap-3">
+      <div id="modalIcon" class="h-10 w-10 shrink-0 rounded-xl grid place-items-center bg-pulse/10 text-pulse"><i class="fa-solid fa-shield-halved"></i></div>
+      <div class="min-w-0 flex-1">
+        <h3 id="modalTitle" class="text-sm font-bold mono-caps text-slate-900 dark:text-white">Confirm</h3>
+        <p id="modalBody" class="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400 break-words">Are you sure?</p>
+        <div id="modalInputWrap" hidden class="mt-3">
+          <input id="modalInput" type="text" class="w-full rounded-lg bg-slate-100 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 px-3 py-2 text-sm outline-none focus:border-pulse" />
+        </div>
+      </div>
+    </div>
+    <div class="mt-5 flex justify-end gap-2">
+      <button id="modalCancel" class="px-3.5 py-2 rounded-lg text-xs font-semibold mono-caps text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 transition">Cancel</button>
+      <button id="modalOk" class="px-3.5 py-2 rounded-lg text-xs font-bold mono-caps bg-pulse text-obsidian-950 hover:bg-pulse-soft transition">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================================================================== -->
+<!-- VIEW 1 — LANDING / AUTH                                               -->
+<!-- ==================================================================== -->
+<div id="viewLanding">
+
+  <!-- ---------- Top nav ---------- -->
+  <header class="sticky top-0 z-40 border-b border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-obsidian-950/80 backdrop-blur-xl">
+    <div class="mx-auto max-w-7xl px-5 h-16 flex items-center justify-between gap-4">
+      <a href="#top" class="flex items-center gap-2.5 group">
+        <!-- Inline SVG logo: a pulse node inside a broken hex shell -->
+        <svg class="h-8 w-8 text-pulse" viewBox="0 0 32 32" fill="none" aria-label="CyberPulse logo" role="img">
+          <path d="M16 2.6 27.5 9v14L16 29.4 4.5 23V9L16 2.6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" opacity=".45"/>
+          <path d="M4.5 16h6l2.5-5 3.5 10 2.5-5h6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="font-extrabold tracking-tight text-[15px] text-slate-900 dark:text-white">CyberPulse<span class="text-pulse">.</span><span class="text-slate-400 dark:text-slate-500 font-medium">net</span></span>
+      </a>
+      <nav class="hidden md:flex items-center gap-7 text-[13px] text-slate-500 dark:text-slate-400">
+        <a href="#economy" class="hover:text-pulse transition">Economy</a>
+        <a href="#exploits" class="hover:text-pulse transition">Exploits</a>
+        <a href="#wager" class="hover:text-pulse transition">Wagering</a>
+        <a href="#access" class="hover:text-pulse transition">Access</a>
+      </nav>
+      <div class="flex items-center gap-2">
+        <button data-diag-open class="h-9 w-9 grid place-items-center rounded-lg border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:text-pulse hover:border-pulse/50 transition" title="About &amp; system diagnostics" aria-label="About and system diagnostics">
+          <i class="fa-solid fa-circle-info"></i>
+        </button>
+        <button data-theme-toggle class="h-9 w-9 grid place-items-center rounded-lg border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:text-pulse hover:border-pulse/50 transition" title="Toggle theme" aria-label="Toggle theme">
+          <i class="fa-solid fa-moon" data-theme-icon></i>
+        </button>
+        <a href="#access" class="px-4 py-2 rounded-lg bg-pulse text-obsidian-950 text-xs font-bold mono-caps hover:bg-pulse-soft transition shadow-glow whitespace-nowrap"><span class="sm:hidden">Access</span><span class="hidden sm:inline">Access Terminal</span></a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ---------- Hero ---------- -->
+  <section id="top" class="relative overflow-hidden">
+    <img src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=2000&q=80" alt="Dense server infrastructure lit in cold blue" class="absolute inset-0 h-full w-full object-cover opacity-[.20] dark:opacity-[.28]" />
+    <div class="absolute inset-0 grid-texture"></div>
+    <div class="absolute inset-0 bg-gradient-to-b from-white/60 via-white/85 to-slate-50 dark:from-obsidian-950/50 dark:via-obsidian-950/85 dark:to-obsidian-950"></div>
+
+    <div class="relative mx-auto max-w-7xl px-5 pt-20 pb-24 md:pt-28 md:pb-32">
+      <div class="max-w-3xl">
+        <div class="inline-flex items-center gap-2 rounded-full border border-pulse/30 bg-pulse/10 px-3 py-1 text-[11px] font-semibold mono-caps text-pulse">
+          <span class="h-1.5 w-1.5 rounded-full bg-pulse animate-pulseRing"></span> Shadow Net · Node online
+        </div>
+        <h1 class="mt-6 text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tighter leading-[1.02] text-slate-900 dark:text-white">
+          The underground runs on<br class="hidden sm:block" />
+          <span class="text-pulse">credits you never declare.</span>
+        </h1>
+        <p class="mt-6 text-[15px] sm:text-base leading-relaxed text-slate-600 dark:text-slate-400 max-w-2xl">
+          <strong class="text-slate-900 dark:text-white font-semibold">CyberPulse: Shadow Net</strong> is a text-driven cyber RPG set inside a black-market data economy. You start as an unranked operative with a burner rig, a thin stack of credits, and one hundred units of energy. Everything after that is your call.
+        </p>
+        <p class="mt-4 text-[15px] leading-relaxed text-slate-600 dark:text-slate-400 max-w-2xl">
+          Scan the net for live targets, deploy keyloggers onto careless smartphones, inject payloads into corporate mainframes, and intercept transfers mid-route. Each run burns energy and risks your stealth rating — get caught and the trace costs you. Move earnings into a cold offline vault before you touch the dice tables, because anything sitting in your hot wallet is fair game when a wager goes bad.
+        </p>
+        <div class="mt-9 flex flex-wrap items-center gap-3">
+          <a href="#access" class="px-5 py-3 rounded-xl bg-pulse text-obsidian-950 text-xs font-bold mono-caps hover:bg-pulse-soft transition shadow-glow"><i class="fa-solid fa-terminal mr-2"></i>Create Operative</a>
+          <a href="#economy" class="px-5 py-3 rounded-xl border border-slate-300 dark:border-white/15 text-xs font-bold mono-caps text-slate-700 dark:text-slate-300 hover:border-pulse hover:text-pulse transition">Read the Briefing</a>
+        </div>
+
+        <dl class="mt-14 grid grid-cols-2 sm:grid-cols-4 gap-px bg-slate-200 dark:bg-white/10 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10">
+          <div class="bg-white dark:bg-obsidian-900 p-4"><dt class="text-[10px] mono-caps text-slate-400">Live nodes</dt><dd class="mt-1 text-xl font-bold text-slate-900 dark:text-white">14,208</dd></div>
+          <div class="bg-white dark:bg-obsidian-900 p-4"><dt class="text-[10px] mono-caps text-slate-400">Exploit kits</dt><dd class="mt-1 text-xl font-bold text-slate-900 dark:text-white">06</dd></div>
+          <div class="bg-white dark:bg-obsidian-900 p-4"><dt class="text-[10px] mono-caps text-slate-400">Vault uptime</dt><dd class="mt-1 text-xl font-bold text-pulse">99.98%</dd></div>
+          <div class="bg-white dark:bg-obsidian-900 p-4"><dt class="text-[10px] mono-caps text-slate-400">Trace risk</dt><dd class="mt-1 text-xl font-bold text-amberflux">Variable</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- Economy briefing ---------- -->
+  <section id="economy" class="mx-auto max-w-7xl px-5 py-20 md:py-24">
+    <div class="grid lg:grid-cols-12 gap-10 items-start">
+      <div class="lg:col-span-5">
+        <p class="text-[11px] font-bold mono-caps text-pulse">01 — The economy</p>
+        <h2 class="mt-3 text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">A closed loop of credits, energy and trust.</h2>
+        <p class="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+          Nothing here touches real currency. Every credit is virtual, minted by the simulation and destroyed by your losses. What makes it interesting is scarcity: energy regenerates slowly, stealth degrades under pressure, and the vault is the only place funds are truly safe.
+        </p>
+        <ul class="mt-6 space-y-3 text-sm text-slate-600 dark:text-slate-400">
+          <li class="flex gap-3"><i class="fa-solid fa-bolt text-amberflux mt-1"></i><span><strong class="text-slate-900 dark:text-white">Energy</strong> caps at 100 and ticks back on its own. Stims buy you speed at a price.</span></li>
+          <li class="flex gap-3"><i class="fa-solid fa-user-secret text-pulse mt-1"></i><span><strong class="text-slate-900 dark:text-white">Stealth</strong> rises with clean runs and drops when a trace lands on you.</span></li>
+          <li class="flex gap-3"><i class="fa-solid fa-vault text-pulse mt-1"></i><span><strong class="text-slate-900 dark:text-white">Vault</strong> funds cannot be wagered, seized, or lost — only what's hot is at risk.</span></li>
+        </ul>
+      </div>
+      <div class="lg:col-span-7 grid sm:grid-cols-2 gap-4">
+        <img src="https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80" alt="Macro shot of a circuit board" class="rounded-2xl border border-slate-200 dark:border-white/10 h-56 w-full object-cover" />
+        <img src="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80" alt="Cascading code on a dark display" class="rounded-2xl border border-slate-200 dark:border-white/10 h-56 w-full object-cover" />
+        <img src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200&q=80" alt="Global network visualised from orbit" class="rounded-2xl border border-slate-200 dark:border-white/10 h-56 w-full object-cover sm:col-span-2" />
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- Exploits ---------- -->
+  <section id="exploits" class="border-y border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900">
+    <div class="mx-auto max-w-7xl px-5 py-20 md:py-24">
+      <p class="text-[11px] font-bold mono-caps text-pulse">02 — Virtual exploits</p>
+      <h2 class="mt-3 text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white max-w-2xl">Six kits. Every one of them can fail.</h2>
+      <div class="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-4" id="landingExploitGrid">
+        <!-- injected by JS from the shared OPERATIONS table -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- Wagering ---------- -->
+  <section id="wager" class="mx-auto max-w-7xl px-5 py-20 md:py-24 grid lg:grid-cols-2 gap-10 items-center">
+    <div>
+      <p class="text-[11px] font-bold mono-caps text-amberflux">03 — Speculative wagering</p>
+      <h2 class="mt-3 text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">The dice table under the server farm.</h2>
+      <p class="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+        A provably simple high/low engine sits at the bottom of the operations deck. Call the roll above or below the median for a modest multiplier, or name the exact face for a payout that will fund a week of downtime. Multipliers shift with the risk you accept, and the house never fronts you credit — you can only wager what's hot in your wallet.
+      </p>
+      <div class="mt-6 flex flex-wrap gap-2 text-[11px] font-bold mono-caps">
+        <span class="px-3 py-1.5 rounded-lg bg-pulse/10 text-pulse border border-pulse/25">Low 1–3 · 1.92×</span>
+        <span class="px-3 py-1.5 rounded-lg bg-pulse/10 text-pulse border border-pulse/25">High 4–6 · 1.92×</span>
+        <span class="px-3 py-1.5 rounded-lg bg-amberflux/10 text-amberflux border border-amberflux/25">Exact face · 5.60×</span>
+      </div>
+    </div>
+    <img src="https://images.unsplash.com/photo-1510915228340-29c85a43dcfe?auto=format&fit=crop&w=1400&q=80" alt="Abstract data visualisation in neon" class="rounded-2xl border border-slate-200 dark:border-white/10 h-72 w-full object-cover" />
+  </section>
+
+  <!-- ---------- Access / auth ---------- -->
+  <section id="access" class="border-t border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900">
+    <div class="mx-auto max-w-7xl px-5 py-20 md:py-24 grid lg:grid-cols-2 gap-12 items-start">
+
+      <div>
+        <p class="text-[11px] font-bold mono-caps text-pulse">04 — Access control</p>
+        <h2 class="mt-3 text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">Register an operative handle.</h2>
+        <p class="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+          Accounts, balances and session state live on the shadow net server. Sign in from any device and your operative picks up exactly where you left it.
+        </p>
+        <div class="mt-6 rounded-xl border border-amberflux/30 bg-amberflux/[.07] p-4">
+          <p class="text-[11px] font-bold mono-caps text-amberflux"><i class="fa-solid fa-key mr-1.5"></i>Server-authoritative economy</p>
+          <p class="mt-2 text-[13px] leading-relaxed text-slate-600 dark:text-slate-400">
+            Every credit, run and contract timer is resolved <strong class="text-slate-900 dark:text-white">inside the database, not in your browser</strong>. Clearance is granted by role — operative, moderator, admin, super admin — and the Admin Desk stays completely hidden from anyone below admin.
+          </p>
+          <p class="mt-2 text-[12px] text-slate-500 dark:text-slate-500" id="rootStatusLine">Checking database…</p>
+        </div>
+      </div>
+
+      <!-- Auth card -->
+      <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-obsidian-850 p-6 shadow-panel">
+        <div class="flex gap-1 p-1 rounded-xl bg-slate-200/70 dark:bg-obsidian-950/70">
+          <button data-auth-tab="login" class="flex-1 py-2 rounded-lg text-[11px] font-bold mono-caps transition">Login</button>
+          <button data-auth-tab="register" class="flex-1 py-2 rounded-lg text-[11px] font-bold mono-caps transition">Register</button>
+          <button data-auth-tab="recover" class="flex-1 py-2 rounded-lg text-[11px] font-bold mono-caps transition">Recover</button>
+        </div>
+
+        <!-- LOGIN -->
+        <form id="formLogin" data-auth-panel="login" class="mt-6 space-y-4" novalidate>
+          <div>
+            <label class="text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Email</label>
+            <input name="identifier" type="email" autocomplete="email" placeholder="op@shadow.net" class="mt-1.5 w-full rounded-lg bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 text-sm outline-none focus:border-pulse transition" />
+          </div>
+          <div>
+            <label class="text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Passphrase</label>
+            <div class="relative mt-1.5">
+              <input name="password" type="password" autocomplete="current-password" placeholder="••••••••" class="w-full rounded-lg bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 pr-10 text-sm outline-none focus:border-pulse transition" />
+              <button type="button" data-reveal class="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center text-slate-400 hover:text-pulse transition" aria-label="Show passphrase"><i class="fa-solid fa-eye text-xs"></i></button>
+            </div>
+          </div>
+          <p data-auth-error class="text-[12px] text-rose-500 hidden"></p>
+          <button type="submit" class="w-full py-3 rounded-xl bg-pulse text-obsidian-950 text-xs font-bold mono-caps hover:bg-pulse-soft transition"><i class="fa-solid fa-right-to-bracket mr-2"></i>Authenticate</button>
+        </form>
+
+        <!-- REGISTER -->
+        <form id="formRegister" data-auth-panel="register" class="mt-6 space-y-4" novalidate hidden>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Handle</label>
+              <input name="username" type="text" autocomplete="username" placeholder="ghost_wire" class="mt-1.5 w-full rounded-lg bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 text-sm outline-none focus:border-pulse transition" />
+            </div>
+            <div>
+              <label class="text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Email</label>
+              <input name="email" type="email" autocomplete="email" placeholder="op@shadow.net" class="mt-1.5 w-full rounded-lg bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 text-sm outline-none focus:border-pulse transition" />
+            </div>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Passphrase</label>
+              <input name="password" type="password" autocomplete="new-password" placeholder="min. 6 chars" class="mt-1.5 w-full rounded-lg bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 text-sm outline-none focus:border-pulse transition" />
+            </div>
+            <div>
+              <label class="text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Confirm passphrase</label>
+              <input name="confirm" type="password" autocomplete="new-password" placeholder="repeat" class="mt-1.5 w-full rounded-lg bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 text-sm outline-none focus:border-pulse transition" />
+            </div>
+          </div>
+          <p class="text-[12px] leading-relaxed text-slate-500 dark:text-slate-400">
+            Your passphrase is hashed by the authentication service and never stored in the game database. Recovery runs through a signed email link — no hint required.
+          </p>
+          <p data-auth-error class="text-[12px] text-rose-500 hidden"></p>
+          <button type="submit" class="w-full py-3 rounded-xl bg-pulse text-obsidian-950 text-xs font-bold mono-caps hover:bg-pulse-soft transition"><i class="fa-solid fa-user-plus mr-2"></i>Provision Operative</button>
+        </form>
+
+        <!-- RECOVER -->
+        <form id="formRecover" data-auth-panel="recover" class="mt-6 space-y-4" novalidate hidden>
+          <p class="text-[12px] leading-relaxed text-slate-500 dark:text-slate-400">Enter the email tied to your handle. The shadow net sends a signed recovery link; opening it here lets you set a new passphrase.</p>
+          <div>
+            <label class="text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Email</label>
+            <input name="email" type="email" autocomplete="email" placeholder="op@shadow.net" class="mt-1.5 w-full rounded-lg bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 text-sm outline-none focus:border-pulse transition" />
+          </div>
+          <div id="recoveryResult" hidden class="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 p-4 space-y-2">
+            <p class="text-[11px] mono-caps text-slate-400">Recovery dispatched</p>
+            <p id="recoveryHint" class="text-sm text-slate-800 dark:text-slate-200 break-words"></p>
+          </div>
+          <p data-auth-error class="text-[12px] text-rose-500 hidden"></p>
+          <button type="submit" class="w-full py-3 rounded-xl border border-slate-300 dark:border-white/15 text-slate-800 dark:text-slate-200 text-xs font-bold mono-caps hover:border-pulse hover:text-pulse transition"><i class="fa-solid fa-rotate-left mr-2"></i>Send Recovery Link</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <footer class="border-t border-slate-200 dark:border-white/10">
+    <div class="mx-auto max-w-7xl px-5 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400">
+      <p>CyberPulse: Shadow Net — a fictional simulation. No real currency, systems or wagers involved.</p>
+      <p class="text-center sm:text-left">© 2026 <b class="text-slate-500 dark:text-slate-300">Joseph Tamunoiyana Francis</b> <span class="mono-caps text-slate-500">(Hacker_001)</span> · <button data-diag-open class="underline decoration-dotted underline-offset-2 hover:text-pulse transition">About &amp; diagnostics</button></p>
+      <p class="mono-caps">Online build · v2.1</p>
+    </div>
+  </footer>
+</div>
+
+<!-- ==================================================================== -->
+<!-- VIEW 2 — DASHBOARD                                                    -->
+<!-- ==================================================================== -->
+<div id="viewApp" hidden class="min-h-screen flex flex-col">
+
+  <!-- ---------- Header / status bar ---------- -->
+  <header class="sticky top-0 z-40 border-b border-slate-200 dark:border-white/10 bg-white/90 dark:bg-obsidian-950/90 backdrop-blur-xl">
+    <div class="mx-auto max-w-7xl px-4 sm:px-5 h-16 flex items-center gap-3">
+      <svg class="h-7 w-7 shrink-0 text-pulse" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M16 2.6 27.5 9v14L16 29.4 4.5 23V9L16 2.6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" opacity=".45"/>
+        <path d="M4.5 16h6l2.5-5 3.5 10 2.5-5h6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <span id="hdrAlias" class="font-bold text-sm text-slate-900 dark:text-white truncate max-w-[150px] sm:max-w-none">operative</span>
+          <span id="hdrAdminBadge" hidden class="px-2 py-0.5 rounded-md bg-amberflux/15 text-amberflux text-[9px] font-extrabold mono-caps border border-amberflux/30 whitespace-nowrap"><i class="fa-solid fa-crown mr-1"></i>Root</span>
+        </div>
+        <p id="hdrClearance" class="hidden sm:block text-[10px] mono-caps text-slate-400 truncate">Clearance · Tier 1</p>
+      </div>
+
+      <div class="ml-auto flex items-center gap-2 sm:gap-3">
+        <!-- Cash -->
+        <div class="hidden sm:flex flex-col items-end px-3 py-1 rounded-lg bg-slate-100 dark:bg-obsidian-900 border border-slate-200 dark:border-white/10">
+          <span class="text-[9px] mono-caps text-slate-400">Hot wallet</span>
+          <span id="hdrCash" class="text-[13px] font-bold text-pulse leading-tight">$0</span>
+        </div>
+        <!-- Vault -->
+        <div class="hidden md:flex flex-col items-end px-3 py-1 rounded-lg bg-slate-100 dark:bg-obsidian-900 border border-slate-200 dark:border-white/10">
+          <span class="text-[9px] mono-caps text-slate-400">Vault</span>
+          <span id="hdrVault" class="text-[13px] font-bold text-slate-900 dark:text-white leading-tight">$0</span>
+        </div>
+        <!-- Energy -->
+        <div class="flex flex-col items-end px-3 py-1 rounded-lg bg-slate-100 dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 w-[82px] sm:w-[104px]">
+          <span class="text-[9px] mono-caps text-slate-400"><i class="fa-solid fa-bolt text-amberflux mr-1"></i><span id="hdrEnergyText">0/100</span></span>
+          <div class="mt-1 h-1.5 w-full rounded-full bg-slate-300 dark:bg-white/10 overflow-hidden">
+            <div id="hdrEnergyBar" class="h-full bg-amberflux transition-all duration-500" style="width:0%"></div>
+          </div>
+        </div>
+
+        <button data-diag-open class="h-9 w-9 grid place-items-center rounded-lg border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:text-pulse hover:border-pulse/50 transition" title="About &amp; system diagnostics" aria-label="About and system diagnostics">
+          <i class="fa-solid fa-circle-info"></i>
+        </button>
+        <button data-theme-toggle class="h-9 w-9 grid place-items-center rounded-lg border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:text-pulse hover:border-pulse/50 transition" title="Toggle theme" aria-label="Toggle theme">
+          <i class="fa-solid fa-moon" data-theme-icon></i>
+        </button>
+        <button id="btnLogout" class="h-9 px-3 grid place-items-center rounded-lg border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 hover:text-rose-500 hover:border-rose-500/50 transition text-xs font-bold mono-caps" title="Log out">
+          <span><i class="fa-solid fa-power-off sm:mr-1.5"></i><span class="hidden sm:inline">Exit</span></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile balance strip -->
+    <div class="sm:hidden px-4 pb-2 flex gap-2 text-[11px]">
+      <span class="flex-1 px-2 py-1 rounded-md bg-slate-100 dark:bg-obsidian-900 border border-slate-200 dark:border-white/10">Cash <b id="hdrCashMobile" class="text-pulse">$0</b></span>
+      <span class="flex-1 px-2 py-1 rounded-md bg-slate-100 dark:bg-obsidian-900 border border-slate-200 dark:border-white/10">Vault <b id="hdrVaultMobile" class="text-slate-900 dark:text-white">$0</b></span>
+    </div>
+
+    <!-- ---------- Tabs ---------- -->
+    <nav class="border-t border-slate-200 dark:border-white/10">
+      <div class="mx-auto max-w-7xl px-2 sm:px-5 flex gap-1 overflow-x-auto no-scrollbar" id="tabBar">
+        <button data-tab="ops"     class="px-3 sm:px-4 py-3 text-[11px] font-bold mono-caps whitespace-nowrap border-b-2 transition"><i class="fa-solid fa-crosshairs mr-1.5"></i>Operations</button>
+        <button data-tab="contracts" class="px-3 sm:px-4 py-3 text-[11px] font-bold mono-caps whitespace-nowrap border-b-2 transition"><i class="fa-solid fa-file-contract mr-1.5"></i>Contracts</button>
+        <button data-tab="assets"  class="px-3 sm:px-4 py-3 text-[11px] font-bold mono-caps whitespace-nowrap border-b-2 transition"><i class="fa-solid fa-briefcase mr-1.5"></i>Gear &amp; Assets</button>
+        <button data-tab="market"  class="px-3 sm:px-4 py-3 text-[11px] font-bold mono-caps whitespace-nowrap border-b-2 transition"><i class="fa-solid fa-right-left mr-1.5"></i>Exchange</button>
+        <button data-tab="vault"   class="px-3 sm:px-4 py-3 text-[11px] font-bold mono-caps whitespace-nowrap border-b-2 transition"><i class="fa-solid fa-vault mr-1.5"></i>Vault &amp; Bank</button>
+        <button data-tab="logs"    class="px-3 sm:px-4 py-3 text-[11px] font-bold mono-caps whitespace-nowrap border-b-2 transition"><i class="fa-solid fa-terminal mr-1.5"></i>Activity Logs</button>
+        <button data-tab="profile" class="px-3 sm:px-4 py-3 text-[11px] font-bold mono-caps whitespace-nowrap border-b-2 transition"><i class="fa-solid fa-id-badge mr-1.5"></i>Profile</button>
+        <button data-tab="admin"   id="tabAdminBtn" hidden class="px-3 sm:px-4 py-3 text-[11px] font-bold mono-caps whitespace-nowrap border-b-2 transition text-amberflux"><i class="fa-solid fa-user-shield mr-1.5"></i>Admin Desk</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="flex-1 grid-texture">
+    <div class="mx-auto max-w-7xl px-4 sm:px-5 py-6 sm:py-8">
+
+      <!-- ============ TAB: OPERATIONS ============ -->
+      <section data-panel="ops" class="space-y-6">
+        <div class="grid lg:grid-cols-12 gap-6">
+
+          <!-- Target scanner -->
+          <div class="lg:col-span-5 rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-5 shadow-panel">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h2 class="text-sm font-extrabold text-slate-900 dark:text-white">Target Scanner</h2>
+                <p class="text-[11px] text-slate-400 mt-0.5">Sweep the subnet for exposed nodes</p>
+              </div>
+              <button id="btnScan" class="px-3 py-2 rounded-lg bg-pulse text-obsidian-950 text-[11px] font-bold mono-caps hover:bg-pulse-soft transition"><i class="fa-solid fa-satellite-dish mr-1.5"></i>Scan</button>
+            </div>
+            <div id="targetList" class="mt-4 space-y-2 max-h-[452px] overflow-y-auto pr-1"></div>
+          </div>
+
+          <!-- Exploits -->
+          <div class="lg:col-span-7 rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-5 shadow-panel">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-sm font-extrabold text-slate-900 dark:text-white">Exploit Deck</h2>
+                <p class="text-[11px] text-slate-400 mt-0.5">Energy is consumed whether the run lands or not</p>
+              </div>
+              <button id="btnRecharge" class="px-3 py-2 rounded-lg border border-amberflux/40 text-amberflux text-[11px] font-bold mono-caps hover:bg-amberflux/10 transition"><i class="fa-solid fa-bolt mr-1.5"></i>Inject stim · $250</button>
+            </div>
+            <div id="opsGrid" class="mt-4 grid sm:grid-cols-2 gap-3"></div>
+          </div>
+        </div>
+
+        <!-- Dice -->
+        <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-5 shadow-panel">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="text-sm font-extrabold text-slate-900 dark:text-white">Underground Dice · High / Low</h2>
+              <p class="text-[11px] text-slate-400 mt-0.5">Wagers draw from your hot wallet only. Vault funds are untouchable.</p>
+            </div>
+            <div class="text-right">
+              <p class="text-[10px] mono-caps text-slate-400">Current multiplier</p>
+              <p id="diceMultiplier" class="text-lg font-extrabold text-amberflux leading-tight">1.92×</p>
+            </div>
+          </div>
+
+          <div class="mt-5 grid lg:grid-cols-12 gap-5 items-start">
+            <div class="lg:col-span-7 space-y-4">
+              <div>
+                <label class="text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Wager</label>
+                <div class="mt-1.5 flex flex-wrap gap-2">
+                  <input id="diceBet" type="number" min="1" step="1" value="100" class="flex-1 min-w-0 basis-full sm:basis-0 rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 text-sm outline-none focus:border-pulse transition" />
+                  <button data-bet-mod="half" class="flex-1 sm:flex-none px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-bold mono-caps hover:border-pulse hover:text-pulse transition">½</button>
+                  <button data-bet-mod="double" class="flex-1 sm:flex-none px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-bold mono-caps hover:border-pulse hover:text-pulse transition">2×</button>
+                  <button data-bet-mod="max" class="flex-1 sm:flex-none px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-bold mono-caps hover:border-pulse hover:text-pulse transition">Max</button>
+                </div>
+              </div>
+              <div>
+                <label class="text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Call</label>
+                <div class="mt-1.5 grid grid-cols-3 gap-2">
+                  <button data-dice-mode="low"   class="py-2.5 rounded-lg border text-[11px] font-bold mono-caps transition">Low 1–3</button>
+                  <button data-dice-mode="high"  class="py-2.5 rounded-lg border text-[11px] font-bold mono-caps transition">High 4–6</button>
+                  <button data-dice-mode="exact" class="py-2.5 rounded-lg border text-[11px] font-bold mono-caps transition">Exact face</button>
+                </div>
+              </div>
+              <div id="exactPickWrap" hidden>
+                <label class="text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Face</label>
+                <div class="mt-1.5 grid grid-cols-6 gap-2" id="exactPick"></div>
+              </div>
+              <button id="btnRoll" class="w-full py-3 rounded-xl bg-amberflux text-obsidian-950 text-xs font-bold mono-caps hover:bg-amberflux-soft transition"><i class="fa-solid fa-dice mr-2"></i>Roll the bones</button>
+            </div>
+
+            <div class="lg:col-span-5">
+              <div class="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-obsidian-850 p-6 text-center">
+                <div id="diceFace" class="mx-auto h-24 w-24 rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 grid place-items-center text-4xl text-slate-900 dark:text-white"><i class="fa-solid fa-dice-d6 text-slate-300 dark:text-slate-700"></i></div>
+                <p id="diceOutcome" class="mt-4 text-[12px] mono-caps text-slate-400">Awaiting wager</p>
+                <div class="mt-4 grid grid-cols-2 gap-2 text-left">
+                  <div class="rounded-lg bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-2.5">
+                    <p class="text-[9px] mono-caps text-slate-400">Rolls</p>
+                    <p id="diceRollsStat" class="text-sm font-bold text-slate-900 dark:text-white">0</p>
+                  </div>
+                  <div class="rounded-lg bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-2.5">
+                    <p class="text-[9px] mono-caps text-slate-400">Net P/L</p>
+                    <p id="diceNetStat" class="text-sm font-bold text-slate-900 dark:text-white">$0</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ TAB: CONTRACTS (server-timed missions) ============ -->
+      <section data-panel="contracts" hidden class="space-y-6">
+        <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 p-5">
+          <div>
+            <h2 class="text-sm font-bold mono-caps text-slate-900 dark:text-white"><i class="fa-solid fa-satellite text-pulse mr-2"></i>Active contract</h2>
+            <p class="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Timers run on the shadow net clock. Closing the tab — or moving your device clock — changes nothing.</p>
+          </div>
+          <div id="activeContract" class="mt-4"></div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 p-5">
+          <h2 class="text-sm font-bold mono-caps text-slate-900 dark:text-white"><i class="fa-solid fa-list-check text-pulse mr-2"></i>Contract board</h2>
+          <div id="missionGrid" class="mt-4 grid sm:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 dark:border-white/5">
+            <h2 class="text-sm font-bold mono-caps text-slate-900 dark:text-white"><i class="fa-solid fa-clock-rotate-left text-pulse mr-2"></i>Contract history</h2>
+          </div>
+          <div id="missionHistory" class="divide-y divide-slate-100 dark:divide-white/5 text-[12px] max-h-[46vh] overflow-y-auto"></div>
+        </div>
+      </section>
+
+      <!-- ============ TAB: GEAR & ASSETS ============ -->
+      <section data-panel="assets" hidden class="space-y-6">
+        <div class="grid lg:grid-cols-12 gap-6">
+          <div class="lg:col-span-7 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 p-5">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h2 class="text-sm font-bold mono-caps text-slate-900 dark:text-white"><i class="fa-solid fa-microchip text-pulse mr-2"></i>Black rack · gear</h2>
+                <p class="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Equipment bonuses are applied server-side to every run.</p>
+              </div>
+              <div class="flex gap-1 p-1 rounded-lg bg-slate-100 dark:bg-obsidian-850 flex-wrap" id="gearFilters"></div>
+            </div>
+            <div id="gearGrid" class="mt-4 grid sm:grid-cols-2 gap-3"></div>
+          </div>
+
+          <div class="lg:col-span-5 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 p-5">
+            <h2 class="text-sm font-bold mono-caps text-slate-900 dark:text-white"><i class="fa-solid fa-boxes-stacked text-pulse mr-2"></i>Loadout</h2>
+            <div id="inventoryList" class="mt-4 space-y-2 max-h-[420px] overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 p-5">
+          <div class="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 class="text-sm font-bold mono-caps text-slate-900 dark:text-white"><i class="fa-solid fa-building text-pulse mr-2"></i>Safe properties</h2>
+              <p class="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Holdings accrue net income per hour against the server clock.</p>
+            </div>
+            <button id="btnCollectIncome" class="px-3 py-2 rounded-lg bg-pulse text-obsidian-950 text-[11px] font-bold mono-caps hover:bg-pulse-soft transition"><i class="fa-solid fa-hand-holding-dollar mr-1.5"></i>Collect <span id="pendingIncome">$0</span></button>
+          </div>
+          <div id="holdingsList" class="mt-4 space-y-2"></div>
+          <div id="propertyGrid" class="mt-5 grid sm:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+        </div>
+      </section>
+
+      <!-- ============ TAB: SHADOW EXCHANGE (Phase 5) ============ -->
+      <section data-panel="market" hidden class="space-y-6">
+
+        <!-- Ticker -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 px-4 py-3">
+            <p class="text-[9px] mono-caps text-slate-400">Live listings</p>
+            <p id="mkStatActive" class="mt-1 text-lg font-bold text-slate-900 dark:text-white">—</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 px-4 py-3">
+            <p class="text-[9px] mono-caps text-slate-400">Volume · 24h</p>
+            <p id="mkStatVolume" class="mt-1 text-lg font-bold text-pulse">—</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 px-4 py-3">
+            <p class="text-[9px] mono-caps text-slate-400">Your posts</p>
+            <p id="mkStatMine" class="mt-1 text-lg font-bold text-slate-900 dark:text-white">—</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 px-4 py-3">
+            <p class="text-[9px] mono-caps text-slate-400">Credits in escrow</p>
+            <p id="mkStatHolds" class="mt-1 text-lg font-bold text-amberflux">—</p>
+          </div>
+        </div>
+
+        <div class="grid lg:grid-cols-12 gap-6">
+          <!-- ---------- Browse ---------- -->
+          <div class="lg:col-span-8 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 p-5">
+            <div class="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <h2 class="text-sm font-bold mono-caps text-slate-900 dark:text-white"><i class="fa-solid fa-right-left text-pulse mr-2"></i>Shadow exchange</h2>
+                <p class="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Operative-to-operative trade in gear, software and upgrades. Every settlement clears server-side.</p>
+              </div>
+              <p id="mkFeeNote" class="text-[10px] mono-caps text-slate-400"></p>
+            </div>
+
+            <div class="mt-4 grid sm:grid-cols-12 gap-2">
+              <div class="sm:col-span-5 relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                <input id="mkSearch" type="search" placeholder="Search the exchange" autocomplete="off"
+                       class="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 text-[12px] text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-pulse/60">
+              </div>
+              <select id="mkCategory" class="sm:col-span-3 px-3 py-2 rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 text-[11px] mono-caps text-slate-700 dark:text-slate-200 focus:outline-none focus:border-pulse/60"></select>
+              <select id="mkRarity" class="sm:col-span-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 text-[11px] mono-caps text-slate-700 dark:text-slate-200 focus:outline-none focus:border-pulse/60">
+                <option value="all">All grades</option>
+                <option value="common">Common</option>
+                <option value="rare">Rare</option>
+                <option value="elite">Elite</option>
+                <option value="blackline">Blackline</option>
+              </select>
+              <select id="mkSort" class="sm:col-span-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 text-[11px] mono-caps text-slate-700 dark:text-slate-200 focus:outline-none focus:border-pulse/60">
+                <option value="recent">Newest</option>
+                <option value="cheap">Cheapest</option>
+                <option value="dear">Priciest</option>
+                <option value="ending">Ending soon</option>
+                <option value="name">A → Z</option>
+              </select>
+            </div>
+
+            <div id="mkGrid" class="mt-4 grid sm:grid-cols-2 gap-3"></div>
+
+            <div class="mt-4 flex items-center justify-between gap-3 flex-wrap">
+              <p id="mkPageInfo" class="text-[11px] mono-caps text-slate-400"></p>
+              <div class="flex gap-2">
+                <button id="mkPrev" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-bold mono-caps text-slate-600 dark:text-slate-300 hover:border-pulse/50 hover:text-pulse transition disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-chevron-left mr-1"></i>Prev</button>
+                <button id="mkNext" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-bold mono-caps text-slate-600 dark:text-slate-300 hover:border-pulse/50 hover:text-pulse transition disabled:opacity-40 disabled:cursor-not-allowed">Next<i class="fa-solid fa-chevron-right ml-1"></i></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ---------- Post a listing ---------- -->
+          <div class="lg:col-span-4 space-y-6">
+            <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 p-5">
+              <h2 class="text-sm font-bold mono-caps text-slate-900 dark:text-white"><i class="fa-solid fa-tag text-pulse mr-2"></i>Post a listing</h2>
+              <p class="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Listed goods leave your rack and are held in escrow until the trade clears.</p>
+
+              <div class="mt-4 space-y-3">
+                <div>
+                  <label for="mkListItem" class="block text-[10px] mono-caps text-slate-400 mb-1">Item</label>
+                  <select id="mkListItem" class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 text-[12px] text-slate-900 dark:text-white focus:outline-none focus:border-pulse/60"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label for="mkListQty" class="block text-[10px] mono-caps text-slate-400 mb-1">Quantity</label>
+                    <input id="mkListQty" type="number" min="1" value="1" class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 text-[12px] text-slate-900 dark:text-white focus:outline-none focus:border-pulse/60">
+                  </div>
+                  <div>
+                    <label for="mkListPrice" class="block text-[10px] mono-caps text-slate-400 mb-1">Price each</label>
+                    <input id="mkListPrice" type="number" min="1" placeholder="0" class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 text-[12px] text-slate-900 dark:text-white focus:outline-none focus:border-pulse/60">
+                  </div>
+                </div>
+                <p id="mkPriceHint" class="text-[10px] mono-caps text-slate-400"></p>
+                <div>
+                  <label for="mkListNote" class="block text-[10px] mono-caps text-slate-400 mb-1">Note <span class="text-slate-500">(optional)</span></label>
+                  <input id="mkListNote" type="text" maxlength="90" placeholder="Clean provenance" class="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 text-[12px] text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-pulse/60">
+                </div>
+                <button id="mkBtnList" class="w-full px-3 py-2.5 rounded-lg bg-pulse text-obsidian-950 text-[11px] font-bold mono-caps hover:bg-pulse-soft transition"><i class="fa-solid fa-upload mr-1.5"></i>Post to exchange</button>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 p-5">
+              <h2 class="text-sm font-bold mono-caps text-slate-900 dark:text-white"><i class="fa-solid fa-inbox text-pulse mr-2"></i>Offers on your posts</h2>
+              <div id="mkIncoming" class="mt-3 space-y-2 max-h-[300px] overflow-y-auto pr-1"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid lg:grid-cols-2 gap-6">
+          <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 p-5">
+            <h2 class="text-sm font-bold mono-caps text-slate-900 dark:text-white"><i class="fa-solid fa-store text-pulse mr-2"></i>Your listings</h2>
+            <div id="mkMine" class="mt-3 space-y-2 max-h-[340px] overflow-y-auto pr-1"></div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-obsidian-900 p-5">
+            <h2 class="text-sm font-bold mono-caps text-slate-900 dark:text-white"><i class="fa-solid fa-hand-holding-dollar text-pulse mr-2"></i>Your offers</h2>
+            <div id="mkMyOffers" class="mt-3 space-y-2 max-h-[340px] overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ TAB: VAULT & BANK ============ -->
+      <section data-panel="vault" hidden class="space-y-6">
+        <div class="grid sm:grid-cols-3 gap-4">
+          <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-5">
+            <p class="text-[10px] mono-caps text-slate-400"><i class="fa-solid fa-wallet mr-1"></i>Hot wallet</p>
+            <p id="vaultCash" class="mt-2 text-2xl font-extrabold text-pulse">$0</p>
+            <p class="mt-1 text-[11px] text-slate-400">Spendable · at risk</p>
+          </div>
+          <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-5">
+            <p class="text-[10px] mono-caps text-slate-400"><i class="fa-solid fa-vault mr-1"></i>Secure vault</p>
+            <p id="vaultVault" class="mt-2 text-2xl font-extrabold text-slate-900 dark:text-white">$0</p>
+            <p class="mt-1 text-[11px] text-slate-400">Offline · protected</p>
+          </div>
+          <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-5">
+            <p class="text-[10px] mono-caps text-slate-400"><i class="fa-solid fa-building-columns mr-1"></i>Bank gateway</p>
+            <p id="vaultBank" class="mt-2 text-2xl font-extrabold text-slate-900 dark:text-white">$0</p>
+            <p class="mt-1 text-[11px] text-slate-400">External · 1.5% wire fee</p>
+          </div>
+        </div>
+
+        <div class="grid lg:grid-cols-2 gap-6">
+          <!-- Vault side -->
+          <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-5 shadow-panel">
+            <h2 class="text-sm font-extrabold text-slate-900 dark:text-white"><i class="fa-solid fa-vault text-pulse mr-2"></i>Secure Vault</h2>
+            <p class="mt-1 text-[11px] text-slate-400">Air-gapped storage. Funds inside cannot be wagered or seized.</p>
+            <label class="mt-5 block text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Amount</label>
+            <input id="vaultAmount" type="number" min="1" step="1" placeholder="0" class="mt-1.5 w-full rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 text-sm outline-none focus:border-pulse transition" />
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <button id="btnVaultDeposit" class="py-2.5 rounded-lg bg-pulse text-obsidian-950 text-[11px] font-bold mono-caps hover:bg-pulse-soft transition"><i class="fa-solid fa-arrow-down mr-1.5"></i>Deposit</button>
+              <button id="btnVaultWithdraw" class="py-2.5 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-bold mono-caps hover:border-pulse hover:text-pulse transition"><i class="fa-solid fa-arrow-up mr-1.5"></i>Withdraw</button>
+            </div>
+            <div class="mt-3 grid grid-cols-3 gap-2">
+              <button data-vault-quick="25" class="py-2 rounded-lg border border-slate-200 dark:border-white/10 text-[10px] font-bold mono-caps hover:border-pulse hover:text-pulse transition">25%</button>
+              <button data-vault-quick="50" class="py-2 rounded-lg border border-slate-200 dark:border-white/10 text-[10px] font-bold mono-caps hover:border-pulse hover:text-pulse transition">50%</button>
+              <button data-vault-quick="100" class="py-2 rounded-lg border border-slate-200 dark:border-white/10 text-[10px] font-bold mono-caps hover:border-pulse hover:text-pulse transition">All cash</button>
+            </div>
+          </div>
+
+          <!-- Bank side -->
+          <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-5 shadow-panel">
+            <h2 class="text-sm font-extrabold text-slate-900 dark:text-white"><i class="fa-solid fa-building-columns text-amberflux mr-2"></i>Banking Gateway</h2>
+            <p class="mt-1 text-[11px] text-slate-400">Simulated external transfers. Outbound wires carry a 1.5% clearing fee.</p>
+            <label class="mt-5 block text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Amount</label>
+            <input id="bankAmount" type="number" min="1" step="1" placeholder="0" class="mt-1.5 w-full rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 text-sm outline-none focus:border-pulse transition" />
+            <label class="mt-3 block text-[10px] font-bold mono-caps text-slate-500 dark:text-slate-400">Counterparty reference</label>
+            <input id="bankRef" type="text" placeholder="MERIDIAN-TRUST-8841" class="mt-1.5 w-full rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 text-sm outline-none focus:border-pulse transition" />
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <button id="btnBankOut" class="py-2.5 rounded-lg bg-amberflux text-obsidian-950 text-[11px] font-bold mono-caps hover:bg-amberflux-soft transition"><i class="fa-solid fa-paper-plane mr-1.5"></i>Wire out</button>
+              <button id="btnBankIn" class="py-2.5 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-bold mono-caps hover:border-amberflux hover:text-amberflux transition"><i class="fa-solid fa-download mr-1.5"></i>Pull inbound</button>
+            </div>
+            <p class="mt-3 text-[11px] text-slate-400"><i class="fa-solid fa-circle-info mr-1"></i>Inbound pulls move bank funds back into your hot wallet, free of charge.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ TAB: ACTIVITY LOGS ============ -->
+      <section data-panel="logs" hidden>
+        <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 shadow-panel overflow-hidden">
+          <div class="flex flex-wrap items-center justify-between gap-3 p-5 border-b border-slate-200 dark:border-white/10">
+            <div>
+              <h2 class="text-sm font-extrabold text-slate-900 dark:text-white"><i class="fa-solid fa-terminal text-pulse mr-2"></i>Activity Terminal</h2>
+              <p class="text-[11px] text-slate-400 mt-0.5">Chronological feed · newest first</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="flex gap-1 p-1 rounded-lg bg-slate-100 dark:bg-obsidian-850" id="logFilters">
+                <button data-log-filter="all" class="px-2.5 py-1.5 rounded-md text-[10px] font-bold mono-caps transition">All</button>
+                <button data-log-filter="hack" class="px-2.5 py-1.5 rounded-md text-[10px] font-bold mono-caps transition">Ops</button>
+                <button data-log-filter="finance" class="px-2.5 py-1.5 rounded-md text-[10px] font-bold mono-caps transition">Finance</button>
+                <button data-log-filter="bet" class="px-2.5 py-1.5 rounded-md text-[10px] font-bold mono-caps transition">Wagers</button>
+                <button data-log-filter="mission" class="px-2.5 py-1.5 rounded-md text-[10px] font-bold mono-caps transition">Contracts</button>
+                <button data-log-filter="system" class="px-2.5 py-1.5 rounded-md text-[10px] font-bold mono-caps transition">System</button>
+              </div>
+              <button id="btnMoreLogs" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-[10px] font-bold mono-caps text-slate-500 hover:text-pulse hover:border-pulse/50 transition">Load more</button>
+              <button id="btnClearLogs" class="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 text-[10px] font-bold mono-caps text-slate-500 hover:text-rose-500 hover:border-rose-500/50 transition">Purge feed</button>
+            </div>
+          </div>
+          <div id="logFeed" class="max-h-[60vh] overflow-y-auto divide-y divide-slate-100 dark:divide-white/5 text-[12px]"></div>
+        </div>
+      </section>
+
+      <!-- ============ TAB: PROFILE ============ -->
+      <section data-panel="profile" hidden class="grid lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-5 rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-6 shadow-panel">
+          <div class="flex items-center gap-4">
+            <div id="profileAvatar" class="h-16 w-16 rounded-2xl bg-pulse/10 border border-pulse/25 grid place-items-center text-pulse text-xl font-extrabold">OP</div>
+            <div class="min-w-0">
+              <h2 id="profileName" class="text-lg font-extrabold text-slate-900 dark:text-white truncate">operative</h2>
+              <p id="profileEmail" class="text-[12px] text-slate-400 truncate">op@shadow.net</p>
+            </div>
+          </div>
+          <dl class="mt-6 space-y-3 text-[12px]">
+            <div class="flex justify-between gap-3 border-b border-slate-100 dark:border-white/5 pb-2"><dt class="text-slate-400 mono-caps text-[10px]">Security clearance</dt><dd id="profileClearance" class="font-bold text-slate-900 dark:text-white">Tier 1 · Standard</dd></div>
+            <div class="flex justify-between gap-3 border-b border-slate-100 dark:border-white/5 pb-2"><dt class="text-slate-400 mono-caps text-[10px]">Role</dt><dd id="profileRole" class="font-bold text-slate-900 dark:text-white">Operative</dd></div>
+            <div class="flex justify-between gap-3 border-b border-slate-100 dark:border-white/5 pb-2"><dt class="text-slate-400 mono-caps text-[10px]">Operative ID</dt><dd id="profileId" class="font-bold text-slate-900 dark:text-white">—</dd></div>
+            <div class="flex justify-between gap-3 border-b border-slate-100 dark:border-white/5 pb-2"><dt class="text-slate-400 mono-caps text-[10px]">Created</dt><dd id="profileCreated" class="font-bold text-slate-900 dark:text-white">—</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-slate-400 mono-caps text-[10px]">Last access</dt><dd id="profileLastLogin" class="font-bold text-slate-900 dark:text-white">—</dd></div>
+          </dl>
+        </div>
+
+        <div class="lg:col-span-7 space-y-6">
+          <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-6 shadow-panel">
+            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Stealth Rating</h3>
+            <div class="mt-3 flex items-end gap-3">
+              <span id="profileStealthVal" class="text-3xl font-extrabold text-pulse leading-none">50</span>
+              <span class="text-[11px] text-slate-400 mb-1">/ 100 · <span id="profileStealthLabel">Ghost-in-training</span></span>
+            </div>
+            <div class="mt-3 h-2 w-full rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
+              <div id="profileStealthBar" class="h-full bg-pulse transition-all duration-500" style="width:50%"></div>
+            </div>
+            <p class="mt-3 text-[11px] text-slate-400">Clean runs raise your rating and improve exploit success odds. Failed intrusions leave traces and drag it down.</p>
+          </div>
+
+          <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-4"><p class="text-[10px] mono-caps text-slate-400">Runs attempted</p><p id="statRuns" class="mt-1.5 text-xl font-extrabold text-slate-900 dark:text-white">0</p></div>
+            <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-4"><p class="text-[10px] mono-caps text-slate-400">Successful</p><p id="statSuccess" class="mt-1.5 text-xl font-extrabold text-pulse">0</p></div>
+            <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-4"><p class="text-[10px] mono-caps text-slate-400">Hit rate</p><p id="statRate" class="mt-1.5 text-xl font-extrabold text-slate-900 dark:text-white">—</p></div>
+            <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-4"><p class="text-[10px] mono-caps text-slate-400">Lifetime earned</p><p id="statEarned" class="mt-1.5 text-xl font-extrabold text-amberflux">$0</p></div>
+          </div>
+
+          <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-6 shadow-panel">
+            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Change passphrase</h3>
+            <div class="mt-4 grid sm:grid-cols-2 gap-3">
+              <input id="pwCurrent" type="password" placeholder="Current passphrase" class="rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 text-sm outline-none focus:border-pulse transition" />
+              <input id="pwNew" type="password" placeholder="New passphrase" class="rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 px-3.5 py-2.5 text-sm outline-none focus:border-pulse transition" />
+            </div>
+            <button id="btnChangePw" class="mt-3 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-white/10 text-[11px] font-bold mono-caps hover:border-pulse hover:text-pulse transition">Update credentials</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ TAB: ADMIN DESK ============ -->
+      <section data-panel="admin" hidden class="space-y-6">
+        <div class="rounded-2xl border border-amberflux/30 bg-amberflux/[.06] p-5">
+          <h2 class="text-sm font-extrabold text-amberflux mono-caps"><i class="fa-solid fa-user-shield mr-2"></i>Root control panel</h2>
+          <p class="mt-1.5 text-[12px] text-slate-600 dark:text-slate-400">Full read/write authority over the operative database. Actions here are immediate and permanent.</p>
+        </div>
+
+        <div class="grid sm:grid-cols-4 gap-4">
+          <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-4"><p class="text-[10px] mono-caps text-slate-400">Operatives</p><p id="admStatUsers" class="mt-1.5 text-xl font-extrabold text-slate-900 dark:text-white">0</p></div>
+          <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-4"><p class="text-[10px] mono-caps text-slate-400">Circulating cash</p><p id="admStatCash" class="mt-1.5 text-xl font-extrabold text-pulse">$0</p></div>
+          <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-4"><p class="text-[10px] mono-caps text-slate-400">Vaulted</p><p id="admStatVault" class="mt-1.5 text-xl font-extrabold text-slate-900 dark:text-white">$0</p></div>
+          <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 p-4"><p class="text-[10px] mono-caps text-slate-400">Total runs</p><p id="admStatRuns" class="mt-1.5 text-xl font-extrabold text-slate-900 dark:text-white">0</p></div>
+        </div>
+
+        <div class="rounded-2xl bg-white dark:bg-obsidian-900 border border-slate-200 dark:border-white/10 shadow-panel overflow-hidden">
+          <div class="flex flex-wrap items-center justify-between gap-3 p-5 border-b border-slate-200 dark:border-white/10">
+            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white">Registered operatives</h3>
+            <input id="admSearch" type="text" placeholder="Filter by handle or email…" class="rounded-lg bg-slate-50 dark:bg-obsidian-850 border border-slate-200 dark:border-white/10 px-3 py-2 text-[12px] outline-none focus:border-pulse transition w-full sm:w-64" />
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-[12px] min-w-[760px]">
+              <thead class="bg-slate-50 dark:bg-obsidian-850 text-slate-400">
+                <tr>
+                  <th class="text-left font-bold mono-caps text-[10px] px-5 py-3">Operative</th>
+                  <th class="text-left font-bold mono-caps text-[10px] px-3 py-3">Role</th>
+                  <th class="text-right font-bold mono-caps text-[10px] px-3 py-3">Cash</th>
+                  <th class="text-right font-bold mono-caps text-[10px] px-3 py-3">Vault</th>
+                  <th class="text-right font-bold mono-caps text-[10px] px-3 py-3">Energy</th>
+                  <th class="text-right font-bold mono-caps text-[10px] px-5 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="adminTableBody" class="divide-y divide-slate-100 dark:divide-white/5"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="border-t border-slate-200 dark:border-white/10">
+    <div class="mx-auto max-w-7xl px-5 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-400">
+      <p>CyberPulse: Shadow Net · fictional simulation · no real currency involved</p>
+      <p class="text-center sm:text-left">© 2026 <b class="text-slate-500 dark:text-slate-300">Joseph Tamunoiyana Francis</b> <span class="mono-caps text-slate-500">(Hacker_001)</span> · <button data-diag-open class="underline decoration-dotted underline-offset-2 hover:text-pulse transition">About &amp; diagnostics</button></p>
+      <p id="footerStorageNote" class="mono-caps"></p>
+    </div>
+  </footer>
+</div>
+<!-- ==================================================================== -->
+<!-- ABOUT / SYSTEM DIAGNOSTICS — cyberpunk terminal overlay.             -->
+<!-- Deliberately always dark: it is a console, not a page.               -->
+<!-- ==================================================================== -->
+<div id="diagHost" hidden class="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-6">
+  <div class="absolute inset-0 bg-obsidian-950/90 backdrop-blur-sm" data-diag-close></div>
+
+  <div class="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-xl overflow-hidden border border-pulse/30 bg-obsidian-950 shadow-[0_0_60px_-12px_rgba(45,212,191,0.35)]">
+    <!-- scanline wash -->
+    <div class="pointer-events-none absolute inset-0 opacity-[0.07] z-10"
+         style="background:repeating-linear-gradient(to bottom, #2dd4bf 0 1px, transparent 1px 3px)"></div>
+
+    <!-- title bar -->
+    <div class="relative z-20 flex items-center gap-2 px-4 py-2.5 border-b border-white/10 bg-obsidian-900">
+      <span class="h-2.5 w-2.5 rounded-full bg-rose-500/80"></span>
+      <span class="h-2.5 w-2.5 rounded-full bg-amberflux/80"></span>
+      <span class="h-2.5 w-2.5 rounded-full bg-pulse/80"></span>
+      <p class="ml-2 text-[10px] mono-caps text-slate-400 truncate">root@shadownet:~/sys — about &amp; diagnostics</p>
+      <button data-diag-close class="ml-auto h-7 w-7 grid place-items-center rounded-md text-slate-400 hover:text-rose-400 hover:bg-white/5 transition" aria-label="Close diagnostics">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- terminal body -->
+    <div id="diagStream" class="relative z-20 flex-1 overflow-y-auto px-4 sm:px-6 py-5 text-[12px] leading-relaxed text-slate-300"
+         style="font-family:'JetBrains Mono',monospace"></div>
+
+    <!-- action bar -->
+    <div class="relative z-20 flex items-center gap-2 flex-wrap px-4 py-3 border-t border-white/10 bg-obsidian-900">
+      <a href="https://discord.gg/dzwS6bewJY" target="_blank" rel="noopener noreferrer"
+         class="px-3 py-2 rounded-lg bg-[#5865F2] text-white text-[11px] font-bold mono-caps hover:brightness-110 transition">
+        <i class="fa-brands fa-discord mr-1.5"></i>Discord uplink
+      </a>
+      <a href="mailto:Tamunoiyana2006@gmail.com"
+         class="px-3 py-2 rounded-lg border border-white/10 text-slate-300 text-[11px] font-bold mono-caps hover:border-pulse/50 hover:text-pulse transition">
+        <i class="fa-solid fa-envelope mr-1.5"></i>Secure comms
+      </a>
+      <button id="diagRerun" class="px-3 py-2 rounded-lg border border-white/10 text-slate-300 text-[11px] font-bold mono-caps hover:border-pulse/50 hover:text-pulse transition">
+        <i class="fa-solid fa-rotate mr-1.5"></i>Re-run scan
+      </button>
+      <button id="diagCopy" class="px-3 py-2 rounded-lg border border-white/10 text-slate-300 text-[11px] font-bold mono-caps hover:border-pulse/50 hover:text-pulse transition">
+        <i class="fa-solid fa-clipboard mr-1.5"></i>Copy report
+      </button>
+      <button data-diag-close class="ml-auto px-3 py-2 rounded-lg bg-pulse text-obsidian-950 text-[11px] font-bold mono-caps hover:bg-pulse-soft transition">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================================================================== -->
+<!-- APPLICATION SCRIPT                                                    -->
+<!-- config.js carries the Supabase project URL + anon key. It is written  -->
+<!-- at build time from environment variables (see build.sh) and contains  -->
+<!-- no secret material: the anon key is a public, RLS-restricted token.   -->
+<!-- ==================================================================== -->
+<script src="config.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
